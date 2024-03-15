@@ -13,6 +13,7 @@ const passport=require("passport");
 const LocalStrategy = require('passport-local');
 
 const user=require("./models/user.js");
+const {isLoggedIn}=require("./middleware.js");
 const sessionOptions = {
     secret: '@123', // Replace 'your-secret-key' with an actual secret key
     resave: false,
@@ -92,11 +93,8 @@ app.get("/listings",wrapasync(async (req,res)=>{
     
  }));
           
- app.get("/listings/new", (req, res) => {
-    if (!req.isAuthenticated()) {
-        req.flash("error", "You must be logged in to rent your vehicle");
-        return res.render("users/login"); // Corrected the path
-    }
+ app.get("/listings/new", isLoggedIn,(req, res) => {
+   
     res.render("./listings/new.ejs");
 });
 
@@ -133,13 +131,13 @@ app.post("/listings",validation,wrapasync(async (req,res,next)=>{
   
 }))
 
-app.get("/listings/:id/edit",wrapasync(async (req,res)=>{
+app.get("/listings/:id/edit", isLoggedIn,wrapasync(async (req,res)=>{
     const id=req.params.id;
     const listing=await Listing.findById(id);
     res.render("./listings/edit.ejs",{listing})
 }))
 
-app.put("/listings/:id",validation,wrapasync(async (req,res)=>{
+app.put("/listings/:id",isLoggedIn,validation,wrapasync(async (req,res)=>{
     const id=req.params.id;
     const listing=await Listing.findById(id);
 
@@ -156,14 +154,16 @@ app.put("/listings/:id",validation,wrapasync(async (req,res)=>{
 
     res.redirect(`/listings/${id}`)
 }))
-app.delete("/listings/:id",wrapasync(async (req,res)=>{
+app.delete("/listings/:id",isLoggedIn,wrapasync(async (req,res)=>{
     const id=req.params.id;
    await Listing.findByIdAndDelete(id);
    res.redirect("/listings");
 }))
 
 
-app.get("/crop", async (req, res) => {
+
+app.get("/crop", isLoggedIn,
+ async (req, res) => {
    
       res.render("./listings/input.ejs")
     
@@ -171,7 +171,7 @@ app.get("/crop", async (req, res) => {
   
 
 
-app.post("/crop",async (req,res)=>{
+app.post("/crop",isLoggedIn,async (req,res)=>{
 
     const selectedState=req.body.state;
     const state=selectedState.split(" ").join("%20");
@@ -204,6 +204,13 @@ app.post("/crop",async (req,res)=>{
   })
 
 
+  app.use((req,res,next)=>{
+    res.locals.success=req.flash("success");
+    res.locals.error=req.flash("error");
+    res.locals.currUser=req.user;
+    next();
+
+  })
 
 // app.get("/demo-user",async (req,res)=>{
 //     let fakeUser=new user({
@@ -244,6 +251,16 @@ app.post("/login",passport.authenticate("local",{failureRedirect:"/login",failur
     req.flash("success","Welcome to Krishi Sarthi!");
     res.redirect("/listings");
 
+})
+
+app.get("/logout",(req,res)=>{
+    req.logout((err)=>{
+        if(err){
+            next(err);
+        }
+        req.flash("success","you are loggedout now");
+        res.redirect("/listings");  
+    })
 })
 
 
