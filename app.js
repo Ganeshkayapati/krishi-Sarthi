@@ -6,21 +6,29 @@ const methodoverride=require("method-override");
 const ejsmate=require("ejs-mate");
 const wrapasync=require("./utils/wrapasync.js");
 const ExpressError=require("./utils/ExpressError.js");
-const listingSchema=require("./schema.js")
+const {listingSchema,farmSchema}=require("./schema.js");
+
+const user=require("./models/user.js");
+
+
 //new
 const session = require('express-session');
 const passport=require("passport");
 const LocalStrategy = require('passport-local');
+const flash = require('connect-flash');
 
-const user=require("./models/user.js");
-const {isLoggedIn}=require("./middleware.js");
+const {isLoggedIn, saveRedirectUrl}=require("./middleware.js");
 const sessionOptions = {
     secret: '@123', // Replace 'your-secret-key' with an actual secret key
     resave: false,
     saveUninitialized: true
     // Add other options as needed
+
 };
-const flash = require('connect-flash');
+
+
+
+
 
 
 
@@ -39,6 +47,7 @@ const port=3000;
 
 
 const Listing=require("./models/listing.js");
+const Farms=require("./models/farm.js")
 
 async function main() {
     try {
@@ -66,11 +75,21 @@ const validation=(req,res,next)=>{
     }
 
 }
+const farmvalidation=(req,res,next)=>{
+    let {error} = farmSchema.validate(req.body);
+    if(error){
+        const errmsg=error.details.map((el) =>el.message).join(',');
+        throw new ExpressError(400,errmsg);
+    }
+    else{
+       next();
+    }
+
+}
 
 
-app.get("/",(req,res)=>{
-    res.send("root");
-})
+
+
 
   //new 
   app.use(session(sessionOptions));
@@ -87,6 +106,23 @@ passport.use(new LocalStrategy(user.authenticate()));
 passport.serializeUser(user.serializeUser());
 passport.deserializeUser(user.deserializeUser());
 
+app.use((req, res, next) => {
+    res.locals.success = req.flash("success");
+    res.locals.success = req.flash("success");
+    res.locals.curruser = req.user;
+     
+     // Setting currUser correctly
+     console.log(res.locals.curruser);
+    next();
+});
+
+
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'Krishi-Sarthi-main', 'index.html'));
+});
+
+
 app.get("/listings",wrapasync(async (req,res)=>{
   const allListings=await Listing.find({});
   res.render("./listings/index.ejs",{allListings})
@@ -100,7 +136,8 @@ app.get("/listings",wrapasync(async (req,res)=>{
 
 app.get("/listings/:id",wrapasync(async (req,res)=>{
     const id=req.params.id;
-    const listings=await Listing.findById(id);
+    const listings=await Listing.findById(id).populate("owner");
+    console.log(listings);
 
     res.render("./listings/show.ejs",{listings})
 }))
@@ -115,12 +152,15 @@ app.post("/listings",validation,wrapasync(async (req,res,next)=>{
     const price=req.body.price;
     const country=req.body.country;
     const location=req.body.location;
+    
     const listing={ title:title,
         description:description,
         image:image,
         price:price,
        location:location,
        country:country}
+       listing.owner=req.user._id;
+
        
     const listingg=new Listing(listing)
     
@@ -204,13 +244,6 @@ app.post("/crop",isLoggedIn,async (req,res)=>{
   })
 
 
-  app.use((req,res,next)=>{
-    res.locals.success=req.flash("success");
-    res.locals.error=req.flash("error");
-    res.locals.currUser=req.user;
-    next();
-
-  })
 
 // app.get("/demo-user",async (req,res)=>{
 //     let fakeUser=new user({
@@ -233,9 +266,13 @@ app.post("/signup",async (req,res)=>{
              username,
          })
          const registeredUser=await user.register(newuser,password);
-         console.log(registeredUser);
-         req.flash("success","Welcome to Krishi Sarthi");
-         res.redirect("/listings");
+         req.login(registeredUser,(err)=>{
+            if(err){
+                return next(err);
+            }
+            req.flash("success","Welcome to Krishi Sarthi");
+            res.redirect("/listings");
+         })
     }catch(e){
         req.flash("error",e.message);
         res.redirect("/signup");
@@ -243,13 +280,19 @@ app.post("/signup",async (req,res)=>{
 
 })
 
+
+
 app.get("/login",(req,res)=>{
+
     res.render("users/login.ejs")
 })
 
-app.post("/login",passport.authenticate("local",{failureRedirect:"/login",failureFlash:true}),async (req,res)=>{
+app.post("/login",saveRedirectUrl,passport.authenticate("local",{failureRedirect:"/login",failureFlash:true}),async (req,res)=>{
+
     req.flash("success","Welcome to Krishi Sarthi!");
-    res.redirect("/listings");
+    let redirectUrl=res.locals.redirectUrl || "/listings";
+
+    res.redirect(redirectUrl);
 
 })
 
@@ -263,6 +306,96 @@ app.get("/logout",(req,res)=>{
     })
 })
 
+
+app.get("/farms",wrapasync(async (req,res)=>{
+    const allFarms=await Farms.find({});
+    res.render("./farms/index.ejs",{allFarms})
+      
+   }));
+
+   
+app.get("/farms/new", isLoggedIn,(req, res) => {
+   
+    res.render("./farms/new.ejs");
+});
+
+app.post("/farms",farmvalidation,wrapasync(async (req,res,next)=>{
+  
+    const description=req.body.description;
+    const image=req.body.image;
+    const area=req.body.area;
+    const price=req.body.price;
+    const location=req.body.location;
+    const state=req.body.state;
+    console.log(area);
+    
+    const farm={ 
+        description:description,
+        image:image,
+        area:area,
+        price:price,
+       location:location,
+       state:state
+    }
+       farm.owner=req.user._id;
+
+       
+    const farmm=new Farms(farm);
+    
+
+    await farmm.save();
+    res.redirect("/farms")
+
+  
+}))
+
+
+
+
+
+app.get("/farms/:id",wrapasync(async (req,res)=>{
+    const id=req.params.id;
+    const farms=await Farms.findById(id).populate("owner");
+    console.log(farms);
+
+    res.render("./farms/show.ejs",{farms})
+}))
+
+
+
+
+app.get("/farms/:id/edit", isLoggedIn,wrapasync(async (req,res)=>{
+    const id=req.params.id;
+    const farm=await Farms.findById(id);
+    res.render("./farms/edit.ejs",{farm})
+}))
+
+app.put("/farms/:id",isLoggedIn,farmvalidation,wrapasync(async (req,res)=>{
+    const id=req.params.id;
+    const farm=await Farms.findById(id);
+
+    farm.description=req.body.description;
+    farm.image=req.body.image;
+    farm.price=req.body.price;
+    farm.location=req.body.location;
+
+
+
+    await farm.save();
+
+    res.redirect(`/farms/${id}`)
+}))
+app.delete("/farms/:id", isLoggedIn, wrapasync(async (req, res) => {
+    const id = req.params.id;
+    const ans=await Farms.findByIdAndDelete(id);
+    console.log(ans);
+    
+    res.redirect("/farms"); // Redirect to the listings index page
+}));
+
+app.get("/payments",(req,res)=>{
+    res.render("./payments/vehicle.ejs");
+})
 
 app.all("*",(req,res,next)=>{
     next(new ExpressError(404,"page not found"));

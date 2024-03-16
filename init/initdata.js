@@ -14,10 +14,11 @@ const listing = require("../models/listing");
 
 
 async function connect(){
-    for(d of dataa.data){
-        data=new listing(d);
-        await data.save();
-    }
+    await listing.deleteMany({});
+    dataa.data=dataa.data.map((obj)=>({...obj,owner:"65f37ed45bf772046e379712"}))
+    await listing.insertMany(dataa.data)
+
+
 }
 
 connect().then(()=>{

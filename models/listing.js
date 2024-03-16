@@ -1,4 +1,6 @@
 const mongoose=require("mongoose");
+
+
 // async function main(){
 //     await mongoose.connect('mongodb://127.0.0.1:27017/bnb');
 // }   
@@ -25,7 +27,12 @@ const listingSchema=new mongoose.Schema({
     },
     price:Number,
     location:String,
-    country:String
+    country:String,
+    owner:{
+        type:mongoose.Schema.Types.ObjectId,
+        ref:"User"
+
+    },
 
 })
 

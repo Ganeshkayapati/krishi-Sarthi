@@ -1,7 +1,7 @@
 const { Schema } = require("mongoose");
 const joi = require("joi");
 
-const listingSchema = joi.object({
+module.exports.listingSchema = joi.object({
  
     title: joi.string().required(),
     description: joi.string().required(),
@@ -13,4 +13,11 @@ const listingSchema = joi.object({
 
 
 
-module.exports = listingSchema;
+module.exports.farmSchema=joi.object({
+    description: joi.string().required(),
+    area: joi.string().required(),
+    price: joi.number().required().min(0),
+    location: joi.string().required(),
+    state: joi.string().required(),
+    image:joi.string().allow("",null)
+})

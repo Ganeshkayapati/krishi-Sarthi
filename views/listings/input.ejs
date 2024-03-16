@@ -97,18 +97,17 @@ document.getElementById("district").addEventListener("change", async function() 
         const data = await response.json();
         const ans = data.records;
 
-        // Clear previous market options
+       
         document.getElementById("market").innerHTML = "<option value=''>--Select Market--</option>";
 
-        // Create a set to store unique market names
         const uniqueMarkets = new Set();
 
-        // Populate market dropdown with unique markets
+       
         ans.forEach(item => {
           uniqueMarkets.add(item.market);
         });
 
-        // Add unique markets to the dropdown
+       
         uniqueMarkets.forEach(market => {
           const option = document.createElement("option");
           option.value = market;
